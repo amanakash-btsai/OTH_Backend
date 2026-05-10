@@ -1,0 +1,4 @@
+dispatch_id,document_number,request_number,dispatch_date,transport_mode,signature_status,qr_code,prepared_by,destination,delivery_status,pdf_name,created_timestamp,owner_id,remarks
+c847df4d-8702-4c5f-8767-7d0487dbc922,DD-1001,DR-2602-106504,2026-02-09,Truck,Signed,QR-1001,Porngak Suriya,Buddachinarai Hospital,Delivered,dispatch_1001.pdf,2026-02-09 09:00,USR001,No damage
+78f692d4-6c43-40e3-b886-08bbb1b6b658,DD-1002,DR-2602-106202,2026-02-11,Air,Signed,QR-1002,Jakkraphan W.,London Hospital,Delivered,dispatch_1002.pdf,2026-02-11 13:15,USR002,Priority shipment
+660db7fc-e0f4-47ae-b707-7ff44a290fc7,DD-1003,DR-2603-107269,2026-02-28,Courier,Pending,QR-1003,Anti Kessle,Manon Naval Hospital,In_Transit,dispatch_1003.pdf,2026-02-28 08:20,USR003,Handle with care

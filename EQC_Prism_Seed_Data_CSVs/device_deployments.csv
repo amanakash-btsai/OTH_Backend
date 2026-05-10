@@ -1,0 +1,4 @@
+deployment_id,asset_name,request_number,hospital,deploy_date,planned_return,deployment_status,owner_id,region,deployment_type,condition_out,condition_in,transport_mode,customer_signature,dispatch_date,actual_return_date,remarks
+6dd84f30-60e8-4117-9f6e-3f215f65b7c9,CH-S700-XZ-EA,DR-2602-106504,Buddachinarai Hospital,2026-02-10,2026-03-05,Active,USR001,North,Demo,Good,No issues,Truck,Signed,2026-02-09,2026-03-05,None
+0a58a49f-4ba7-4da0-bb66-66d472e367f7,GIF-Q158,DR-2602-106202,London Hospital,2026-02-12,2026-03-15,Returned,USR002,Central,Loaner,Excellent,Minor scratches,Air,Signed,2026-02-11,2026-03-14,Late return
+34778678-224a-4c05-90f3-faf2885ee38f,CF-Q165L,DR-2603-107269,Manon Naval Hospital,2026-03-01,2026-04-01,Active,USR003,South,Repair_Loaner,Fair,Pending inspection,Courier,Pending,2026-02-28,,Inspection pending

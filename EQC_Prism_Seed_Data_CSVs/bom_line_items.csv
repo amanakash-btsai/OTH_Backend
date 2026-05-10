@@ -1,0 +1,6 @@
+line_item_id,bom_set_id,accessory_id,quantity,requirement_type,inspection_status,created_on,created_by,remarks
+fe0b495f-5894-42d1-906b-091410f812c3,BOM001,ACCY001,1,Mandatory,Pass,2026-01-01,USR004,Cable included
+4c3092d3-bf2b-4538-b1e1-1f47e7f1080d,BOM001,ACCY002,1,Mandatory,Pass,2026-01-01,USR004,Bottle included
+e229c00f-1040-41b6-a3f5-ce1eb874f9a8,BOM002,ACCY004,1,Mandatory,Pass,2026-01-15,USR004,Processor assigned
+380eb3df-accd-4d99-a4ff-8af20c6ee9ee,BOM002,ACCY005,1,Optional,Pass,2026-01-15,USR004,Transport support
+19819c54-51c6-4510-85f2-6dc05c523075,BOM003,ACCY003,2,Mandatory,Pending,2026-02-01,USR002,Awaiting stock

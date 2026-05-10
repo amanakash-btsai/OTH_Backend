@@ -1,0 +1,4 @@
+contract_id,asset_name,contract_type,start_date,end_date,status
+65755a71-21a9-4e06-918f-a5473686be00,CH-S700-XZ-EA,Gold,2026-01-01,2027-01-01,Active
+00e60d8d-1f99-4860-9e89-e3a41b9bc225,GIF-Q158,Silver,2025-07-01,2026-07-01,Active
+73243600-c7e1-4ace-8723-37252baac5b5,CF-Q165L,Bronze,2025-04-01,2026-04-01,Expired

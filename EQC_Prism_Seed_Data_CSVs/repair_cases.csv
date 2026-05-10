@@ -1,0 +1,12 @@
+section_6.4_|_10_sample_records_|_source:_oth_eqc_finalsystemdesign.docx,,,,,,,,
+rs_number,eas_no,status,hospital,asset_name,serial_no,repair_type,area,repair_cost_thb
+RS-202602-099595,9349141,Quoted,Buddachinarai Hospital,CH-S700-XZ-EA,7200524,Normal_Repair,NORTH,"45,000"
+RS-202512-097878,9349742,IQ_Quoted,London Hospital,TIF-Q180V,2349141,Normal_Repair,CENTRAL,"72,000"
+RS-202511-095300,9341122,PO_Received,Ramathibodi Hospital,GIF-Q158,2307145,Normal_Repair,CENTRAL,"38,500"
+RS-202602-099400,9348800,IQ_Quoted,Siriraj Hospital,CF-Q165L,2760115,Q3S_Repair,CENTRAL,"91,000"
+RS-202510-093000,9335500,Parts_Arranged,Bumrungrad International,GIF-H290,2350261,Normal_Repair,CENTRAL,"55,000"
+RS-202509-091000,9322000,Confirmed,Bangkok Hospital,CF-H90L,2260112,Service_Contract,CENTRAL,0 (contract)
+RS-202602-099700,9349900,Parts_Arranged,Bangkok Hospital Udon,ITF-SLIM,3125441,Normal_Repair,EAST,"48,500"
+RS-202602-099800,9350100,Confirmed,Mahidol University Hospital,TJF-Q180V,2198771,GI_Repair,CENTRAL,"63,000"
+RS-202601-098000,9345500,Quoted,Chiang Mai Ram Hospital,GIF-XQ290,3300112,Normal_Repair,NORTH,"42,000"
+RS-202511-097182,9347200,IQ_Quoted,Manon Naval Hospital,GIF-Q158,3100044,Normal_Repair,NORTH,"39,000"

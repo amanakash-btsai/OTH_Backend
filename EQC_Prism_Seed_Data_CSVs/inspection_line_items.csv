@@ -1,0 +1,5 @@
+line_id,inspection_number,item_name,inspection_result,availability,action_required,status
+4e62fae6-34c1-47f6-b254-968ff6ab0660,INSP-001,Light Source Cable,Pass,Present,None,Closed
+1f00fd49-a11a-4704-b6a3-13dce0c9b7e0,INSP-001,Water Bottle,Pass,Present,None,Closed
+b8a1840a-e7dc-4289-bcdf-0f9590352336,INSP-002,Video Processor,Fail,Damaged,Replace outer shell,Open
+7590ae23-f66c-4291-afd3-ac80fc877d47,INSP-002,Transport Case,Pass,Present,None,Closed

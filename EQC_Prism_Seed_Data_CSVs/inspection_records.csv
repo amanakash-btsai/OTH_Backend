@@ -1,0 +1,4 @@
+inspection_id,inspection_number,asset_name,result,remarks,inspector_id,inspection_date,status
+394e999e-90b6-4355-9492-df2495f42683,INSP-001,CH-S700-XZ-EA,Pass,No visible defects,USR003,2026-03-05,Closed
+88508d2f-84d3-4e6b-9424-95a615984c4c,INSP-002,GIF-Q158,Minor_Damage,Scratch on outer casing,USR002,2026-03-14,Review
+20971684-ab23-4613-8944-e34d1cb27019,INSP-003,CF-Q165L,Pending,Awaiting return,USR003,2026-04-02,Open

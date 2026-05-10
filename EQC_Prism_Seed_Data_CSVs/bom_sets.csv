@@ -1,0 +1,4 @@
+bom_set_id,set_name,model_code,version,description,status,effective_date,owner_id,item_count,criticality
+BOM001,Set A,GIF-Q158,v2.1,Gastroscope standard set,Active,2026-01-01,USR004,15,High
+BOM002,Set B,CF-Q165L,v1.8,Colonoscope procedure set,Active,2026-01-15,USR004,11,Medium
+BOM003,Set C,TIF-Q180V,v3.0,Video scope inspection set,Draft,2026-02-01,USR002,8,Low

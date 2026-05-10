@@ -1,0 +1,4 @@
+extension_id,request_number,old_return_date,new_return_date,reason,status,approved_by,requested_on
+7460c543-148e-45f1-87e9-08e732fbbc3e,DR-2603-107269,2026-03-25,2026-04-15,Customer requested extended evaluation,Approved,USR002,2026-03-22
+99f47037-b055-45da-9bba-f557dd639e10,DR-2602-106202,2026-03-10,2026-03-30,Surgery schedule delayed,Pending,USR001,2026-03-08
+1f716390-dea3-4c2c-b4b6-2acf1c6ec64e,DR-2602-106504,2026-03-06,2026-03-18,Repair completion pending,Approved,USR003,2026-03-04

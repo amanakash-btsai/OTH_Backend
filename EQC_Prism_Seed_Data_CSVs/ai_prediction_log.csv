@@ -1,0 +1,4 @@
+prediction_id,asset_name,prediction_type,confidence_score,prediction_text,created_on
+df495fc1-b69e-4392-93cb-a723b69cbc4a,CH-S700-XZ-EA,Return_Delay_Risk,0.82,High probability of delayed return,2026-03-01
+7de84bbb-140a-4904-986f-a32cb7ff114e,GIF-Q158,Damage_Risk,0.64,Possible cosmetic damage,2026-03-10
+611c4738-c6f4-4e5f-8f94-adeab194b216,CF-Q165L,Repair_Escalation,0.71,Repair cost may exceed threshold,2026-04-02

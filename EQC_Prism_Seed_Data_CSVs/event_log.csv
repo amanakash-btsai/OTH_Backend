@@ -1,0 +1,4 @@
+event_id,object_type,object_ref,event_type,source,event_time,user_id,description,severity,channel,previous_value,status
+b24dde51-7414-40ee-a3aa-857cd1626c10,Sales_Request,DR-2602-106504,Created,System,2026-02-01 10:00,USR001,Request created,Info,Web,N/A,Success
+1ef777f1-fd62-4c78-8177-9d40304f92df,Asset,GIF-Q158,Status_Changed,System,2026-02-12 14:00,USR002,Moved to With_Customer,Info,API,Available,Success
+0cf43d94-6514-423f-90fd-20e31d7d7932,Inspection,INSP-002,Inspection_Failed,System,2026-03-14 16:00,USR003,Damage detected,Warning,Web,Pass,Review

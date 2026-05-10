@@ -1,0 +1,4 @@
+alert_id,alert_type,reference_number,delivery_status,sent_time,message,message_id,owner_id
+d37af54e-eca8-4c67-93e3-7c89b56cd2b8,Overdue_Return,DR-2602-106202,Sent,2026-03-16 09:00,Loaner overdue by 1 day,teams-alert-001,USR002
+dfd9fa8e-d042-4edc-a4be-4adf23730fa9,Damage_Inspection,INSP-002,Sent,2026-03-14 17:00,Damage found during inspection,teams-alert-002,USR003
+b63d67d8-5d39-4c21-844a-9429bf22b93c,Deployment_Active,DR-2603-107269,Queued,2026-03-02 08:00,Deployment started,teams-alert-003,USR004

@@ -1,0 +1,435 @@
+// Enums are not supported by the SQL Server connector.
+// All enum-typed fields are stored as NVarChar strings.
+// TypeScript enum/union types live in src/types/enums.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ── MODELS ─────────────────────────────────────────────────────────────────
+
+model User {
+  user_id      String  @id @default(uuid()) @db.UniqueIdentifier
+  name         String  @db.NVarChar(200)
+  email        String  @unique @db.NVarChar(200)
+  // UserRole: Sales_Rep | FSE | EQC_Operator | EQC_Manager | Sales_Manager | Executive | System_Admin | Integration_Service
+  role         String  @db.NVarChar(50)
+  team         String? @db.NVarChar(100)
+  area         String? @db.NVarChar(50)
+  sfdc_user_id String? @db.NVarChar(20)
+  is_active    Boolean
+
+  assets_fse                 Asset[]            @relation("AssetFSE")
+  bom_sets_created           BomSet[]
+  sales_requests_pic         SalesRequest[]     @relation("SalesRequestPIC")
+  sales_requests_salesperson SalesRequest[]     @relation("SalesRequestSalesPerson")
+  sales_requests_approved    SalesRequest[]     @relation("SalesRequestApprover")
+  sales_requests_created     SalesRequest[]     @relation("SalesRequestCreator")
+  extensions_approved        RequestExtension[] @relation("ExtensionApprover")
+  deployments_responsible    DeviceDeployment[] @relation("DeploymentEQC")
+  dispatch_docs_generated    DispatchDocument[] @relation("DocGenerator")
+  inspections_performed      InspectionRecord[] @relation("InspectionPerformer")
+  repair_cases_fse           RepairCase[]       @relation("RepairFSE")
+  event_log_entries          EventLog[]         @relation("EventActor")
+
+  @@map("users")
+}
+
+model Account {
+  account_id   String   @id @default(uuid()) @db.UniqueIdentifier
+  account_name String   @db.NVarChar(200)
+  address      String?  @db.NVarChar(Max)
+  area         String?  @db.NVarChar(20)
+  department   String?  @db.NVarChar(200)
+  segmentation String?  @db.NVarChar(100)
+  group_wave   String?  @db.NVarChar(100)
+  created_at   DateTime @default(now()) @db.DateTime2
+
+  assets         Asset[]
+  sales_requests SalesRequest[]
+  repair_cases   RepairCase[]
+
+  @@map("accounts")
+}
+
+model Asset {
+  asset_id                 String   @id @default(uuid()) @db.UniqueIdentifier
+  asset_name               String   @db.NVarChar(100)
+  serial_number            String   @unique @db.NVarChar(50)
+  model_code               String   @db.NVarChar(50)
+  model_name               String?  @db.NVarChar(200)
+  sap_asset_number         String?  @db.NVarChar(30)
+  sfdc_asset_id            String?  @db.NVarChar(20)
+  // AssetStatus: Available | Requested | Preparing | BOM_Confirmed | Dispatched | In_Transit | With_Customer | Return_Initiated | In_Inspection | Cleaning | Under_Repair | Quarantine | Extension_Used | Overdue | Retired
+  status                   String   @db.NVarChar(30)
+  // DemoLoanerType: Demo_Asset | Loaner_Asset | MBA_Asset | Service_Center | Rental | Operating_Lease | Workshop | MKTS | Comprehensive_Contract
+  demo_loaner_type         String   @db.NVarChar(30)
+  warehouse_code           String?  @db.NVarChar(50)
+  installation_location    String?  @db.NVarChar(200)
+  account_id               String?  @db.UniqueIdentifier
+  fse_owner_id             String?  @db.UniqueIdentifier
+  business_unit            String?  @db.NVarChar(30)
+  oth_tier1                String?  @db.NVarChar(100)
+  oth_tier2                String?  @db.NVarChar(100)
+  oth_tier3                String?  @db.NVarChar(100)
+  install_date             DateTime? @db.Date
+  warranty_start           DateTime? @db.Date
+  warranty_end             DateTime? @db.Date
+  invoice_date             DateTime? @db.Date
+  // AssetAgeGroup: Young | Mature | Old
+  asset_age_group          String?  @db.NVarChar(10)
+  // FDAStatus: Not_Enrolled | Enrolled | Approved
+  fda_status               String?  @db.NVarChar(15)
+  fda_approved_no          String?  @db.NVarChar(50)
+  service_contract_id      String?  @db.UniqueIdentifier
+  total_repair_count       Int?
+  total_repair_amount_thb  Decimal? @db.Decimal(12, 2)
+  last_pm_date             DateTime? @db.Date
+  // AnnualInspectionStatus: 1_Target | 2_Scheduled | 3_Completed | 4_Not_Target
+  annual_inspection_status String?  @db.NVarChar(20)
+  // ConditionGrade: New | Good | Needs_Service | Defective
+  condition_grade          String?  @db.NVarChar(15)
+  is_active                Boolean
+  created_at               DateTime @default(now()) @db.DateTime2
+  updated_at               DateTime @updatedAt @db.DateTime2
+
+  account          Account?          @relation(fields: [account_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
+  fse_owner        User?             @relation("AssetFSE", fields: [fse_owner_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  // FK: this asset's currently active service contract
+  service_contract ServiceContract?  @relation("AssetCurrentContract", fields: [service_contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction)
+  deployments      DeviceDeployment[]
+  repair_cases     RepairCase[]
+  // Back-ref: service contracts that cover this asset
+  owned_contracts  ServiceContract[] @relation("ContractAsset")
+
+  @@index([status])
+  @@index([model_code])
+  @@index([demo_loaner_type])
+  @@map("assets")
+}
+
+model SalesRequest {
+  request_id           String    @id @default(uuid()) @db.UniqueIdentifier
+  request_number       String    @unique @db.NVarChar(20)
+  sfdc_request_id      String?   @db.NVarChar(20)
+  // RecordType: First_Request | Extension_Request
+  record_type          String    @db.NVarChar(20)
+  // SalesRequestStatus: Draft | Waiting_Approval | Waiting_Reservation | Preparing | BOM_Confirmed | Ready_for_Dispatch | Dispatched | With_Customer | Return_Initiated | Request_Complete | Cancelled
+  status               String    @db.NVarChar(25)
+  // Purpose1: Repair | Sales | Marketing | QARA | Others
+  purpose1             String    @db.NVarChar(15)
+  // Purpose2: Normal_Repair_Loaner | Q3S_Loaner | GI3_Loaner | Service_Contract_Loaner | Demonstration | VPP_CPP_Rental | Operating_Lease | Workshop
+  purpose2             String    @db.NVarChar(30)
+  account_id           String    @db.UniqueIdentifier
+  department_category  String?   @db.NVarChar(200)
+  department_name      String?   @db.NVarChar(200)
+  customer_address     String?   @db.NVarChar(Max)
+  customer_pic_id      String?   @db.UniqueIdentifier
+  sales_person_id      String    @db.UniqueIdentifier
+  request_date         DateTime  @db.Date
+  start_use_date       DateTime  @db.Date
+  estimate_return_date DateTime  @db.Date
+  actual_return_date   DateTime? @db.Date
+  repair_case_id       String?   @db.UniqueIdentifier
+  parent_request_id    String?   @db.UniqueIdentifier
+  internal_so_number   String?   @db.NVarChar(50)
+  pr_number            String?   @db.NVarChar(50)
+  event_name           String?   @db.NVarChar(200)
+  prospect_name        String?   @db.NVarChar(200)
+  pcl_number           String?   @db.NVarChar(50)
+  // total_loan_period_days: computed column — add via raw SQL migration
+  extension_count      Int       @default(0)
+  approved_by_id       String?   @db.UniqueIdentifier
+  approved_at          DateTime? @db.DateTime2
+  rejection_reason     String?   @db.NVarChar(Max)
+  bom_set_id           String?   @db.UniqueIdentifier
+  dispatch_doc_id      String?   @db.UniqueIdentifier
+  inspection_record_id String?   @db.UniqueIdentifier
+  created_by_id        String    @db.UniqueIdentifier
+  created_at           DateTime  @default(now()) @db.DateTime2
+  updated_at           DateTime  @updatedAt @db.DateTime2
+
+  account           Account           @relation(fields: [account_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
+  customer_pic      User?             @relation("SalesRequestPIC", fields: [customer_pic_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  sales_person      User              @relation("SalesRequestSalesPerson", fields: [sales_person_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  approved_by       User?             @relation("SalesRequestApprover", fields: [approved_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  created_by        User              @relation("SalesRequestCreator", fields: [created_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  repair_case       RepairCase?       @relation("RequestRepairCase", fields: [repair_case_id], references: [repair_id], onDelete: NoAction, onUpdate: NoAction)
+  parent_request    SalesRequest?     @relation("ExtensionOf", fields: [parent_request_id], references: [request_id], onDelete: NoAction, onUpdate: NoAction)
+  child_extensions  SalesRequest[]    @relation("ExtensionOf")
+  bom_set           BomSet?           @relation(fields: [bom_set_id], references: [set_id], onDelete: NoAction, onUpdate: NoAction)
+  dispatch_doc      DispatchDocument? @relation("RequestDispatchDoc", fields: [dispatch_doc_id], references: [doc_id], onDelete: NoAction, onUpdate: NoAction)
+  inspection_record InspectionRecord? @relation("RequestInspection", fields: [inspection_record_id], references: [inspection_id], onDelete: NoAction, onUpdate: NoAction)
+  deployments       DeviceDeployment[]
+  extensions        RequestExtension[]
+
+  @@index([sfdc_request_id])
+  @@index([status])
+  @@index([account_id])
+  @@index([sales_person_id])
+  @@map("sales_requests")
+}
+
+model RequestExtension {
+  extension_id      String   @id @default(uuid()) @db.UniqueIdentifier
+  parent_request_id String   @db.UniqueIdentifier
+  new_return_date   DateTime @db.Date
+  reason_code       String   @db.NVarChar(50)
+  reason_text       String?  @db.NVarChar(Max)
+  // ExtensionStatus: Waiting_Approval | Approved | Rejected
+  status            String   @db.NVarChar(20)
+  approved_by_id    String?  @db.UniqueIdentifier
+  created_at        DateTime @default(now()) @db.DateTime2
+
+  parent_request SalesRequest @relation(fields: [parent_request_id], references: [request_id], onDelete: NoAction, onUpdate: NoAction)
+  approved_by    User?        @relation("ExtensionApprover", fields: [approved_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("request_extensions")
+}
+
+model BomSet {
+  set_id         String    @id @default(uuid()) @db.UniqueIdentifier
+  set_name       String    @unique @db.NVarChar(50)
+  model_code     String    @db.NVarChar(50)
+  version        String    @db.NVarChar(10)
+  effective_date DateTime  @db.Date
+  expiry_date    DateTime? @db.Date
+  is_active      Boolean
+  description    String?   @db.NVarChar(Max)
+  created_by_id  String    @db.UniqueIdentifier
+  created_at     DateTime  @default(now()) @db.DateTime2
+
+  created_by     User           @relation(fields: [created_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  line_items     BomLineItem[]
+  sales_requests SalesRequest[]
+
+  @@map("bom_sets")
+}
+
+model BomLineItem {
+  line_id           String  @id @default(uuid()) @db.UniqueIdentifier
+  set_id            String  @db.UniqueIdentifier
+  accessory_id      String  @db.UniqueIdentifier
+  sequence_no       Int?
+  quantity_required Int
+  is_required       Boolean
+  is_optional       Boolean
+  is_consumable     Boolean
+  storage_location  String? @db.NVarChar(100)
+
+  bom_set          BomSet               @relation(fields: [set_id], references: [set_id], onDelete: NoAction, onUpdate: NoAction)
+  accessory        AccessoryMaster      @relation(fields: [accessory_id], references: [accessory_id], onDelete: NoAction, onUpdate: NoAction)
+  inspection_items InspectionLineItem[]
+
+  @@map("bom_line_items")
+}
+
+model AccessoryMaster {
+  accessory_id      String   @id @default(uuid()) @db.UniqueIdentifier
+  accessory_code    String   @unique @db.NVarChar(50)
+  accessory_name    String   @db.NVarChar(200)
+  device_model_code String?  @db.NVarChar(50)
+  is_active         Boolean
+  created_at        DateTime @default(now()) @db.DateTime2
+
+  bom_line_items BomLineItem[]
+
+  @@map("accessory_master")
+}
+
+model DeviceDeployment {
+  deployment_id        String    @id @default(uuid()) @db.UniqueIdentifier
+  request_id           String    @db.UniqueIdentifier
+  asset_id             String    @db.UniqueIdentifier
+  // DeploymentType: Demo | Loaner | Rental | Operating_Lease
+  deployment_type      String    @db.NVarChar(20)
+  // DeploymentStatus: Preparing | Dispatched | With_Customer | Returned | In_Inspection | In_Repair
+  status               String    @db.NVarChar(20)
+  start_date           DateTime  @db.Date
+  expected_return_date DateTime  @db.Date
+  actual_return_date   DateTime? @db.Date
+  // days_outstanding: computed column — add via raw SQL migration
+  // ConditionOnDispatch: New | Good | Needs_Service
+  condition_on_dispatch String?  @db.NVarChar(15)
+  // ConditionOnReturn: Good | Needs_Cleaning | Defective | Missing
+  condition_on_return  String?   @db.NVarChar(15)
+  is_billable          Boolean?
+  rental_rate_thb      Decimal?  @db.Decimal(10, 2)
+  // BillingCycle: Daily | Weekly | Monthly
+  billing_cycle        String?   @db.NVarChar(10)
+  responsible_eqc_id   String?   @db.UniqueIdentifier
+  created_at           DateTime  @default(now()) @db.DateTime2
+  updated_at           DateTime  @updatedAt @db.DateTime2
+
+  sales_request      SalesRequest       @relation(fields: [request_id], references: [request_id], onDelete: NoAction, onUpdate: NoAction)
+  asset              Asset              @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction)
+  responsible_eqc    User?              @relation("DeploymentEQC", fields: [responsible_eqc_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  dispatch_documents DispatchDocument[]
+  inspection_records InspectionRecord[]
+
+  // Note: filtered index (status, expected_return_date) WHERE status = 'Dispatched'
+  // must be added via raw SQL migration — Prisma does not support filtered indexes.
+  @@index([status])
+  @@index([start_date, expected_return_date])
+  @@index([asset_id, status])
+  @@map("device_deployments")
+}
+
+model DispatchDocument {
+  doc_id              String    @id @default(uuid()) @db.UniqueIdentifier
+  deployment_id       String    @db.UniqueIdentifier
+  // DocumentType: First_Request | Extension | Item_List | Return_Receipt
+  document_type       String    @db.NVarChar(20)
+  pdf_blob_url        String?   @db.NVarChar(500)
+  qr_code_value       String?   @db.NVarChar(200)
+  qr_code_image_url   String?   @db.NVarChar(500)
+  generated_by_id     String    @db.UniqueIdentifier
+  generated_at        DateTime  @db.DateTime2
+  printer_sent_at     DateTime? @db.DateTime2
+  signed_copy_url     String?   @db.NVarChar(500)
+  signed_by_name      String?   @db.NVarChar(100)
+  signed_at           DateTime? @db.DateTime2
+  // DispatchDocStatus: Generated | Sent_to_Print | Signed | Uploaded | Archived
+  status              String    @db.NVarChar(20)
+  sap_gi_triggered    Boolean   @default(false)
+  sap_gi_triggered_at DateTime? @db.DateTime2
+
+  deployment            DeviceDeployment @relation(fields: [deployment_id], references: [deployment_id], onDelete: NoAction, onUpdate: NoAction)
+  generated_by          User             @relation("DocGenerator", fields: [generated_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  sales_requests_linked SalesRequest[]   @relation("RequestDispatchDoc")
+
+  @@index([status, generated_at])
+  @@index([deployment_id])
+  @@map("dispatch_documents")
+}
+
+model InspectionRecord {
+  inspection_id     String    @id @default(uuid()) @db.UniqueIdentifier
+  deployment_id     String    @db.UniqueIdentifier
+  // ConditionOnReturn: Good | Needs_Cleaning | Defective | Missing
+  overall_condition String?   @db.NVarChar(15)
+  notes             String?   @db.NVarChar(Max)
+  inspected_by_id   String    @db.UniqueIdentifier
+  inspected_at      DateTime  @db.DateTime2
+  repair_case_id    String?   @db.UniqueIdentifier
+  created_at        DateTime  @default(now()) @db.DateTime2
+
+  deployment            DeviceDeployment   @relation(fields: [deployment_id], references: [deployment_id], onDelete: NoAction, onUpdate: NoAction)
+  inspected_by          User               @relation("InspectionPerformer", fields: [inspected_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  repair_case           RepairCase?        @relation("InspectionRepairCase", fields: [repair_case_id], references: [repair_id], onDelete: NoAction, onUpdate: NoAction)
+  line_items            InspectionLineItem[]
+  sales_requests_linked SalesRequest[]     @relation("RequestInspection")
+
+  @@map("inspection_records")
+}
+
+model InspectionLineItem {
+  item_id         String    @id @default(uuid()) @db.UniqueIdentifier
+  inspection_id   String    @db.UniqueIdentifier
+  bom_line_id     String    @db.UniqueIdentifier
+  // InspectionResult: Pass | Fail | Missing
+  result          String    @db.NVarChar(10)
+  quantity_actual Int?
+  notes           String?   @db.NVarChar(Max)
+  // InspectionType: DISPATCH | RETURN
+  inspection_type String    @db.NVarChar(10)
+
+  inspection_record InspectionRecord @relation(fields: [inspection_id], references: [inspection_id], onDelete: NoAction, onUpdate: NoAction)
+  bom_line_item     BomLineItem      @relation(fields: [bom_line_id], references: [line_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("inspection_line_items")
+}
+
+model RepairCase {
+  repair_id       String    @id @default(uuid()) @db.UniqueIdentifier
+  rs_number       String    @unique @db.NVarChar(30)
+  eas_no          String?   @db.NVarChar(20)
+  asset_id        String    @db.UniqueIdentifier
+  account_id      String    @db.UniqueIdentifier
+  sfdc_repair_id  String?   @db.NVarChar(20)
+  // RepairCaseStatus: Quoted | IQ_Quoted | PO_Received | Parts_Arranged | Confirmed | Completed
+  status          String    @db.NVarChar(20)
+  // RepairType: Normal_Repair | Q3S_Repair | GI_Repair | Service_Contract
+  repair_type     String    @db.NVarChar(20)
+  area            String?   @db.NVarChar(20)
+  repair_cost_thb Decimal?  @db.Decimal(12, 2)
+  fse_assigned_id String?   @db.UniqueIdentifier
+  created_at      DateTime  @default(now()) @db.DateTime2
+
+  asset              Asset              @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction)
+  account            Account            @relation(fields: [account_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
+  fse_assigned       User?              @relation("RepairFSE", fields: [fse_assigned_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  sales_requests     SalesRequest[]     @relation("RequestRepairCase")
+  inspection_records InspectionRecord[] @relation("InspectionRepairCase")
+
+  @@map("repair_cases")
+}
+
+model EventLog {
+  log_id      String   @id @default(uuid()) @db.UniqueIdentifier
+  // EventEntityType: asset | sales_request | deployment | dispatch_doc | inspection | repair_case | bom_set
+  entity_type String   @db.NVarChar(20)
+  entity_id   String   @db.UniqueIdentifier
+  event_type  String   @db.NVarChar(100)
+  old_value   String?  @db.NVarChar(Max)
+  new_value   String?  @db.NVarChar(Max)
+  actor_id    String?  @db.UniqueIdentifier
+  // ActorType: User | System | AI_Agent | Integration
+  actor_type  String   @db.NVarChar(15)
+  timestamp   DateTime @db.DateTime2
+  narrative   String   @db.NVarChar(Max)
+  ip_address  String?  @db.NVarChar(50)
+  session_id  String?  @db.NVarChar(100)
+
+  actor User? @relation("EventActor", fields: [actor_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([entity_type, entity_id])
+  @@index([timestamp(sort: Desc)])
+  @@map("event_log")
+}
+
+model TeamsAlertLog {
+  alert_id        String   @id @default(uuid()) @db.UniqueIdentifier
+  alert_type      String   @db.NVarChar(100)
+  channel         String   @db.NVarChar(100)
+  payload         String?  @db.NVarChar(Max)
+  // AlertDeliveryStatus: Sent | Delivered | Failed | Retry
+  delivery_status String   @db.NVarChar(10)
+  message_id      String?  @db.NVarChar(100)
+  created_at      DateTime @default(now()) @db.DateTime2
+
+  @@map("teams_alert_log")
+}
+
+model ServiceContract {
+  contract_id     String   @id @default(uuid()) @db.UniqueIdentifier
+  contract_number String   @unique @db.NVarChar(50)
+  asset_id        String   @db.UniqueIdentifier
+  contract_type   String   @db.NVarChar(100)
+  start_date      DateTime @db.Date
+  end_date        DateTime @db.Date
+
+  // FK: this contract covers this asset
+  asset         Asset   @relation("ContractAsset", fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction)
+  // Back-ref: assets whose service_contract_id points here
+  assets_linked Asset[] @relation("AssetCurrentContract")
+
+  @@map("service_contracts")
+}
+
+model AiPredictionLog {
+  prediction_id     String   @id @default(uuid()) @db.UniqueIdentifier
+  // AIPredictionType: OVERDUE_FORECAST | ANOMALY_DETECTION | AUDIT_NARRATION
+  prediction_type   String   @db.NVarChar(30)
+  entity_id         String   @db.UniqueIdentifier
+  entity_type       String   @db.NVarChar(50)
+  prediction_output String   @db.NVarChar(Max)
+  confidence_score  Decimal? @db.Decimal(5, 4)
+
+  @@map("ai_prediction_log")
+}

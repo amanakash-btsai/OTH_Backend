@@ -1,0 +1,17 @@
+section_6.1_|_15_sample_records_|_source:_oth_eqc_finalsystemdesign.docx,,,,,,,,,
+request_number,record_type,status,account,purpose1,purpose2,start_use_date,est_return,repair_case,sales_person
+DR-2602-106504,First_Request,Request_Complete,Buddachinarai Hospital,Repair,Normal_Repair_Loaner,2026-02-10,2026-03-05,RS-202602-099595,Porngak Suriya
+DR-2602-106202,First_Request,Waiting_Reservation,London Hospital,Others,VPP_CPP_Rental,2026-02-12,2026-03-15,—,Jakkraphan W.
+DR-2603-107269,Extension_Request,Waiting_Approval,Manon Naval Hospital,Repair,Normal_Repair_Loaner,2026-03-01,2026-04-01,RS-202511-097182,Anti Kessle
+DR-2602-106300,First_Request,Request_Complete,Thammasat University Hospital,Others,VPP_CPP_Rental,2026-02-14,2026-03-14,—,Ronton Josh
+DR-2602-106050,First_Request,Dispatched,Siriraj Hospital,Repair,Q3S_Loaner,2026-02-08,2026-03-08,RS-202602-099400,Preeyanan K.
+DR-2509-088601,First_Request,Request_Complete,Bumrungrad International,Others,VPP_CPP_Rental,2025-09-10,2025-10-10,—,Kanokwan S.
+DR-2510-090023,First_Request,With_Customer,King Chulalongkorn Memorial Hospital,Sales,Demonstration,2025-10-01,2025-10-15,—,Vit Thamrong
+DR-2511-092500,First_Request,Request_Complete,Ramathibodi Hospital,Repair,Normal_Repair_Loaner,2025-11-05,2025-12-05,RS-202511-095300,Ark Suranon
+DR-2512-095000,First_Request,Request_Complete,NE Welfare Hospital Udonthani,Repair,Q3_Loaner,2025-12-01,2026-01-01,RS-202512-097878,Anti Kessle
+DR-2601-100100,First_Request,Waiting_Reservation,Chularat 3 International,Others,Demonstration,2026-01-10,2026-01-25,—,Tee Charoensuk
+DR-2602-106900,Extension_Request,With_Customer,Bangkok Hospital Udon,Repair,Normal_Repair_Loaner,2026-02-20,2026-03-20,RS-202602-099700,Ronton Josh
+DR-2602-107000,First_Request,Request_Complete,Mahidol University Hospital,Repair,GI3_Loaner,2026-02-25,2026-03-25,RS-202602-099800,Jakkraphan W.
+DR-2603-107100,First_Request,Waiting_Approval,Saraburi Hospital,Sales,Demonstration,2026-03-15,2026-03-30,—,Porngak Suriya
+DR-2603-107210,First_Request,Preparing,Chiang Mai Ram Hospital,Repair,Normal_Repair_Loaner,2026-03-05,2026-04-05,RS-202601-098000,Ark Suranon
+DR-2603-107350,First_Request,BOM_Confirmed,Khon Kaen Hospital,QARA,Qualification_Regulation,2026-03-12,2026-04-12,—,Preeyanan K.

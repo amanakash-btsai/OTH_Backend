@@ -1,0 +1,649 @@
+﻿EQC Asset Management Platform
+Backend Application Technical Specification
+OTH Equipment Co.  |  Olympus Thailand Medical Division
+Version 1.0  |  May 2026
+CONFIDENTIAL — INTERNAL USE ONLY
+Document Purpose
+This document provides the complete technical specification for the EQC backend application — a Node.js/Express/TypeScript REST API deployed on Azure Kubernetes Service (AKS), using Azure SQL as the primary database. It covers every file and its purpose, all API routes, authentication and authorization flows, integration connectors, background job processors, AI agents, database schema, and verification procedures.
+Table of Contents
+1. Executive Summary
+The EQC Asset Management Platform is an enterprise-grade cloud system replacing fragmented MS Access, Excel, and Salesforce workflows used to manage medical endoscopy device deployments across hospitals in Thailand. This document specifies the backend application exclusively — a standalone Node.js/Express/TypeScript REST API running on Azure Kubernetes Service (AKS) with Azure SQL as the primary database.
+The backend serves the React frontend (a separate application), processes inbound webhooks from Salesforce via MuleSoft and from SAP for daily asset master synchronization, sends outbound Adaptive Card alerts to six MS Teams channels, generates A4 PDF transport documents stored in Azure Blob Storage, and runs six AI agents for autonomous operations monitoring powered by Azure OpenAI GPT-4o mini.
+The system manages the full lifecycle of medical endoscopy device sets: Demo deployments to hospital surgical departments, Loaner deployments triggered by repair requests, BOM (Bill of Materials) packing and dispatch with hard server-enforced blocking on incomplete packing, return inspection with per-component pass/fail assessment and automatic repair case creation, and a complete append-only audit trail for compliance.
+Key architectural principles:
+State machines enforced in the service layer — invalid transitions are rejected with 409
+BOM dispatch block is server-side only — cannot be bypassed by the frontend under any circumstances
+BOM snapshots are frozen at dispatch time — inspections use the historical snapshot, not live BOM data
+All webhook processing is idempotent — duplicate calls return existing records
+Audit logging is non-blocking — never delays HTTP responses
+All secrets managed via Azure Key Vault — never stored in code or environment files
+2. Technology Stack
+Layer
+Technology
+Purpose
+Runtime
+Node.js 20 LTS
+Stable, broad Azure support, active LTS
+Framework
+Express.js
+Lightweight HTTP framework, well-understood
+Language
+TypeScript (strict mode)
+Type safety across all modules, compile-time error detection
+ORM
+Prisma
+Schema-first ORM with Azure SQL (sqlserver) provider support
+Database
+Azure SQL (SQL Server)
+Enterprise managed database, zone-redundant HA
+Job Queue
+BullMQ + Azure Cache for Redis
+Cron-based background jobs, async notifications
+Authentication
+JWT (RS256) + Azure AD OAuth2
+Corporate SSO via Azure AD plus email/password fallback
+PDF Generation
+PDFKit
+Server-side A4 transport document generation
+QR Code
+qrcode library
+QR code generation embedded in transport PDFs
+Email
+Nodemailer + Azure Communication Services
+Print queue notifications, escalation emails, reports
+Blob Storage
+Azure Blob Storage SDK
+PDFs, signed document copies, generated reports
+AI Services
+Azure OpenAI (GPT-4o mini)
+6 autonomous agents for operations monitoring
+Validation
+Zod
+Schema validation on all incoming requests
+Logging
+Winston + Azure Application Insights
+Structured logs, APM, performance monitoring
+Security
+Helmet, express-rate-limit, CORS
+OWASP hardening, rate limiting, origin restriction
+Testing
+Jest + Supertest
+Unit tests and integration tests with real database
+Containerization
+Docker + Azure Container Registry
+Consistent builds, immutable images
+Orchestration
+Azure Kubernetes Service (AKS)
+Autoscaling 2-10 nodes, rolling deployments
+CI/CD
+Azure DevOps Pipelines
+Build, test, push to ACR, deploy to AKS
+Secrets
+Azure Key Vault
+All credentials managed centrally, never in code
+3. Folder and File Structure
+Every file in the project is listed below with a plain-English description of its purpose. Organized by directory layer.
+3.1 Root Level & Configuration Files
+.env.example
+Template showing all required environment variables with placeholder values. Committed to source control so developers know what to configure.
+.gitignore
+Excludes: node_modules/, dist/, .env, coverage/, *.log, and Azure-specific local files.
+Dockerfile
+Multi-stage build. Stage 1 installs dependencies and compiles TypeScript. Stage 2 copies only compiled output and production node_modules into a minimal Node.js Alpine image.
+docker-compose.yml
+Local dev environment: starts API server, Azure SQL Edge (local SQL Server equivalent), and Redis. Maps ports and injects environment variables.
+package.json
+Project manifest with all dependencies. Scripts: build (tsc), start, dev (ts-node-dev), test (jest), migrate (prisma migrate dev), generate (prisma generate).
+tsconfig.json
+TypeScript strict mode, output to ./dist, path aliases (@config, @middleware, @modules, @services, @utils, @types). Decorators disabled.
+jest.config.ts
+Uses ts-jest preset, 80% coverage thresholds, separate environments for unit and integration tests.
+prisma/schema.prisma
+Single source of truth for DB schema. Uses datasource provider 'sqlserver' for Azure SQL. Defines all 13 models, enums, fields, relations, and indexes.
+prisma/migrations/
+Auto-generated versioned SQL migration folders created by Prisma Migrate, each containing the SQL to apply incremental schema changes to Azure SQL.
+3.2 Type Definitions (src/types/)
+src/server.ts
+Entry point. Creates HTTP server, binds to PORT. Registers graceful shutdown handlers (SIGTERM/SIGINT) that close DB, drain BullMQ queue, stop accepting requests.
+src/app.ts
+Builds the Express app. Registers global middleware in order, mounts all routers, registers /api/health, registers global error handler. Exported for tests.
+src/config/index.ts
+Validates ALL env vars at startup via Zod schema. Crashes with a clear message if any required variable is missing. Exports a frozen config object — the only file that reads process.env.
+src/config/database.ts
+Prisma Client singleton. Lazy-initialized. Query logging in dev mode. Exported as 'prisma' and imported by all service files.
+3.3 Middleware Stack (src/middleware/)
+src/config/redis.ts
+BullMQ Redis connection from REDIS_URL. Handles connection errors without crashing. Exported as redisConnection.
+src/config/azure-blob.ts
+Azure Blob Storage client. Exports helpers to get container clients for transport-docs, signed-copies, and audit-reports.
+src/config/azure-openai.ts
+Azure OpenAI client with endpoint, API key, and gpt-4o-mini deployment name. Exported as openaiClient for AI agents.
+src/config/key-vault.ts
+Production: fetches secrets from Azure Key Vault using Managed Identity. Development: falls back to .env. Called by config/index.ts at startup.
+src/types/express.d.ts
+Augments Express Request to include req.user (id, email, role, azureAdObjectId) after auth middleware attaches it.
+src/types/enums.ts
+All application enums: UserRole, AssetStatus, DeploymentStatus, DeploymentType, InspectionResult, BOMItemType, DispatchDocStatus, BillingCycle, AssetCondition. Mirrors Prisma schema enums.
+src/types/api.types.ts
+ApiResponse<T>, PaginatedResponse<T>, ErrorResponse interfaces for standardized response shapes.
+src/types/job.types.ts
+BullMQ job payload interfaces: OverdueAlertJobData, KpiDigestJobData, ReportJobData, EmailJobData.
+3.4 Utility Helpers (src/utils/)
+src/middleware/auth.middleware.ts
+JWT AUTHENTICATION. Reads Authorization: Bearer token. Verifies signature. Attaches req.user. Returns 401 (UNAUTHORIZED, INVALID_TOKEN, TOKEN_EXPIRED) as appropriate.
+src/middleware/rbac.middleware.ts
+ROLE-BASED ACCESS CONTROL. Factory: requireRole(...roles) returns middleware. Checks req.user.role against allowed list. Returns 403 INSUFFICIENT_PERMISSIONS if not authorized.
+src/middleware/audit.middleware.ts
+AUDIT LOGGING FACTORY. auditAction(entityType, getEntityId) wraps handlers to write AuditLog entries non-blocking via setImmediate. Never delays the HTTP response.
+src/middleware/validate.middleware.ts
+ZOD VALIDATION. validate(schema) factory validates req.body/query/params. Returns 400 VALIDATION_ERROR with field-level error details on failure.
+src/middleware/rateLimiter.middleware.ts
+RATE LIMITING. Auth: 10 req/min. API: 100 req/min. Webhooks: 200 req/min. AI: 20 req/min. Uses Redis store for distributed limiting across AKS pods.
+src/middleware/requestLogger.middleware.ts
+REQUEST LOGGING. Morgan with custom format: method, path, status, response time, user ID. Pipes to Winston. JSON logs in production, colorized in dev.
+3.5 Auth Module (src/modules/auth/)
+src/middleware/asyncHandler.ts
+Wraps async route handlers in try-catch, forwards errors to next(). Eliminates repetitive try-catch in every controller.
+src/middleware/errorHandler.middleware.ts
+GLOBAL ERROR HANDLER. Handles AppError, ZodError (→400), PrismaClientKnownRequestError (P2002→409, P2025→404), and generic errors (→500). Always returns { success: false, error: { code, message, details } }.
+src/utils/errors.ts
+AppError class with statusCode, errorCode, details. Factory methods: notFound, unauthorized, forbidden, conflict, badRequest, dispatchBlocked(missingItems).
+src/utils/response.ts
+sendSuccess(res, data, meta?) and sendPaginated(res, data, total, page, limit). Ensures consistent { success: true, data, meta } shape.
+3.6 Assets Module (src/modules/assets/)
+src/utils/pagination.ts
+parsePagination(query) returns { skip, take, page, limit } from query string. buildPaginationMeta(total, page, limit) calculates totalPages.
+src/utils/dateUtils.ts
+isOverdue(date), daysOverdue(date), addDays(date, n), formatDateTH(date), toUTC(date). Used across services and job processors.
+src/utils/idGenerator.ts
+generateRepairCaseId() → RC-YYYYMMDD-{seq}. generateDocumentRef() → DOC-YYYYMMDD-{uuid}. Human-readable IDs for Teams alerts and emails.
+src/utils/logger.ts
+Winston logger. JSON + App Insights in production. Colorized console in dev. Never use console.log — always logger.info() / logger.error().
+src/modules/auth/auth.routes.ts
+Registers /api/auth: POST /login, POST /refresh, POST /logout, GET /me, GET /sso/azure. Rate-limits /login. All routes are public (no auth middleware).
+3.7 Deployments Module (src/modules/deployments/)
+src/modules/auth/auth.service.ts
+CORE AUTH LOGIC: login (bcrypt verify, issue token pair), refreshToken (reuse detection, new access token), logout (delete refresh token), azureCallback (exchange code, upsert user, issue tokens), issueTokenPair (15-min JWT + 7-day refresh).
+src/modules/auth/auth.controller.ts
+HTTP layer for auth. Sets/clears HttpOnly refresh cookie. Returns access token in body.
+src/modules/auth/auth.schema.ts
+Zod schemas: LoginBodySchema (email + password min 8 chars).
+src/modules/assets/asset.routes.ts
+Routes on /api/assets. POST / requires ADMIN. PATCH /:id requires EQC/ADMIN. PATCH /:id/status requires EQC/MANAGER/ADMIN.
+src/modules/assets/asset.service.ts
+ASSET LOGIC: list (filtered, paginated), getById, create (serial uniqueness), update (partial), transitionStatus (state machine check + Teams alert on IN_REPAIR), checkAvailability (no overlap query).
+3.8 BOM Module (src/modules/bom/)
+src/modules/assets/asset.stateMachine.ts
+Transition map: AVAILABLE→DEMO/LOANER/IN_REPAIR/QUARANTINE. DEMO/LOANER→AVAILABLE/IN_REPAIR/QUARANTINE/RETIRED. IN_REPAIR→AVAILABLE/QUARANTINE/RETIRED. QUARANTINE→IN_REPAIR/RETIRED. RETIRED is terminal.
+src/modules/assets/asset.controller.ts
+HTTP layer for assets.
+src/modules/assets/asset.schema.ts
+Zod schemas: CreateAssetSchema, UpdateAssetSchema, TransitionAssetStatusSchema, AssetListQuerySchema.
+src/modules/deployments/deployment.service.ts
+DEPLOYMENT LOGIC: create (serializable transaction + overlap check = BOOKING_CONFLICT), approve (→IN_PREPARATION + Teams card), requestExtension, transitionStatus (state machine + asset status tandem update).
+3.9 Dispatch Module (src/modules/dispatch/)
+src/modules/deployments/deployment.stateMachine.ts
+Transitions: DRAFT→PENDING_EQC→IN_PREPARATION→IN_TRANSIT→DELIVERED→RETURNED→COMPLETED. Exports isValidDeploymentTransition and getRequiredRole.
+src/modules/deployments/deployment.routes.ts
+Routes on /api/deployments with role-based guards per endpoint.
+src/modules/deployments/deployment.controller.ts
+HTTP layer for deployments.
+src/modules/deployments/deployment.schema.ts
+Zod schemas for all deployment request bodies.
+src/modules/bom/bom.service.ts
+BOM LOGIC: listSets, getSetComponents, createComponent, updateComponent, createSnapshot (serialize BOM to JSON at dispatch time), getSnapshot, validatePacking (THE DISPATCH BLOCK — checks all REQUIRED items are packed).
+src/modules/bom/bom.routes.ts
+Routes on /api/bom. Create/update requires ADMIN. Snapshot creation requires EQC/ADMIN.
+3.10 Inspection Module (src/modules/inspection/)
+src/modules/bom/bom.controller.ts
+HTTP layer for BOM.
+src/modules/bom/bom.schema.ts
+Zod schemas for BOM request bodies.
+src/modules/dispatch/dispatch.service.ts
+DISPATCH ORCHESTRATION: generateDocument (10-step: validate packing → QR → PDF → Blob upload → DB record → transition status → queue email → Teams card → return), uploadSignedCopy, emailToPrinter.
+src/modules/dispatch/pdf.service.ts
+PDFKit A4 document: header with doc ref + QR code, deployment details table, BOM checklist table with checkboxes, signature block. Returns Buffer.
+3.11 Dashboards Module (src/modules/dashboards/)
+src/modules/dispatch/qr.service.ts
+generateQrCode(url) → base64 PNG data URL using qrcode library. Embedded in transport PDFs.
+src/modules/dispatch/dispatch.routes.ts
+Routes on /api/dispatch. All require EQC/MANAGER/ADMIN. Sign endpoint accepts multipart/form-data.
+src/modules/dispatch/dispatch.controller.ts
+HTTP layer for dispatch.
+src/modules/dispatch/dispatch.schema.ts
+Zod schemas for dispatch request bodies.
+3.12 Reports, Accounts, Users, Audit Modules
+src/modules/inspection/inspection.service.ts
+INSPECTION LOGIC: createInspection (one InspectionRecord per BOM component), recordItemResult (FAIL/MISSING → auto-create repair case ID + CRIT Teams alert), completeInspection (all PASS → asset AVAILABLE; any FAIL → IN_REPAIR).
+src/modules/inspection/inspection.routes.ts
+Routes on /api/inspections. All require EQC/MANAGER/ADMIN.
+src/modules/inspection/inspection.controller.ts
+HTTP layer for inspections.
+src/modules/inspection/inspection.schema.ts
+Zod schemas for inspection request bodies.
+src/modules/dashboards/dashboard.service.ts
+5 role-gated dashboard queries: getSalesDashboard, getServiceDashboard (revenue at risk), getInventoryDashboard, getOverdueFeed (severity classified), getExecutiveDashboard (KPI trends). All use explicit Prisma select/include — no N+1.
+src/modules/dashboards/dashboard.cache.ts
+node-cache wrapper with 5-minute TTL per dashboard type. Cache key: dashboard:{type}:{userId}. Invalidated on deployment/asset status changes.
+3.13 Webhooks Module (src/modules/webhooks/)
+src/modules/dashboards/dashboard.routes.ts
+Role-gated routes on /api/dashboard.
+src/modules/dashboards/dashboard.controller.ts
+HTTP layer for dashboards.
+src/modules/reports/report.service.ts
+REPORTS: 4 report types (DeploymentSummary, LoanerBilling, InspectionDefects, AssetUtilization). exportToExcel (xlsx), exportToPdf (PDFKit). scheduleReport creates BullMQ repeatable jobs.
+src/modules/accounts/account.service.ts
+ACCOUNTS: list (filters), getById (with deployment history), create, update, upsertFromSalesforce (idempotent).
+src/modules/users/user.service.ts
+USERS: list, create (bcrypt 12 rounds), updateRole, deactivate (soft delete), findByEmail, upsertFromAzureAD (SSO first-login creation).
+src/modules/audit/audit.service.ts
+AUDIT: getByEntity (paginated read), write (append-only insert via setImmediate). AuditLog table is never updated or deleted.
+3.14 Shared Services (src/services/)
+src/modules/webhooks/webhook.validator.ts
+HMAC-SHA256 validation using crypto.timingSafeEqual(). Reads X-Mulesoft-Signature header. Requires express.raw() on webhook routes to preserve raw body bytes.
+src/modules/webhooks/mulesoft.controller.ts
+INBOUND MULESOFT: handleNewRequest (validate HMAC → idempotency check → create deployment), handleStatusUpdate (transition deployment status), handleAssetSync (upsert assets + BOM). Always returns 200.
+src/modules/webhooks/teams.controller.ts
+INBOUND TEAMS: handleCardAction validates Teams signature, routes Acknowledge/Escalate/Review button actions to appropriate service methods.
+src/modules/webhooks/webhook.routes.ts
+Routes on /api/webhooks. Uses express.raw() (not json()). No JWT auth — uses HMAC.
+3.15 Background Jobs (src/jobs/)
+src/modules/webhooks/webhook.service.ts
+processAssetSyncBatch (Prisma upsert loop), processRequestBatch. Returns created/updated/skipped summary.
+src/services/email.service.ts
+Nodemailer + Azure Comm Services SMTP. sendTransportDocEmail, sendEscalationEmail, sendReportEmail. All sends queued via BullMQ emailQueue — never inline.
+src/services/blob.service.ts
+Azure Blob SDK: uploadTransportDoc ({year}/{month}/{id}.pdf), uploadSignedCopy, generateSasUrl (1-hour expiry, generated on demand — NOT stored in DB), deleteBlob.
+src/services/teams.service.ts
+6 Teams channels. postDispatchCard, postOverdueAlert, postDefectAlert, postInventoryWarning, postKpiDigest. 3× exponential backoff retry (500/1000/2000ms). On total failure: writes to AlertFailure table.
+src/services/openai.service.ts
+Azure OpenAI complete(systemPrompt, userPrompt, maxTokens). Handles 429 + 503 with retry. Used by all 6 AI agents.
+src/jobs/queue.ts
+BullMQ Queue instances: overdueAlertQueue, kpiDigestQueue, receiptMonitorQueue, inventoryAlertQueue, reportQueue, emailQueue. Shared Redis connection.
+src/jobs/scheduler.ts
+Cron registrations: Overdue Alert (*/6h), KPI Digest (07:00 UTC), Receipt Monitor (09:00 UTC), Inventory Alert (10:00 UTC). Exports triggerJobNow() for manual admin triggers.
+src/jobs/processors/overdueAlert.processor.ts
+BullMQ Worker: queries DELIVERED deployments past end_date. Classifies severity (HIGH/CRIT/URGENT). Calls overdueClassifier.agent.ts for AI draft. Posts Teams alert. Updates alert_sent_at.
+src/jobs/processors/kpiDigest.processor.ts
+Daily 07:00 UTC: gets executive KPI data, calls kpiForecast.agent.ts for AI narrative, posts Adaptive Card to #exec-summary.
+src/jobs/processors/receiptMonitor.processor.ts
+Daily 09:00 UTC: finds unsigned DispatchDocuments. 3-7 days → reminder. >7 days → manager escalation. Calls receiptMonitor.agent.ts for pattern analysis.
+src/jobs/processors/inventoryAlert.processor.ts
+Daily 10:00 UTC: compares asset counts per model_code against ConfigThreshold minimums. Posts to #inventory-critical if below threshold.
+src/jobs/processors/reportGeneration.processor.ts
+Handles scheduled report jobs: generates report, exports to XLSX/PDF, queues email job with attachment.
+3.16 Routes & Tests
+src/jobs/agents/auditNarration.agent.ts
+AI AGENT: fetches AuditLog entries for an entity, sends timeline to GPT-4o-mini, returns compliance-ready narrative paragraph.
+src/jobs/agents/overdueClassifier.agent.ts
+AI AGENT: given deployment context, returns { severity, suggestedAction, emailDraft } for Teams overdue alert cards.
+src/jobs/agents/anomalyDetection.agent.ts
+AI AGENT: analyzes 90-day inspection failure rates by component + warehouse. Reports unusual patterns to #asset-defects.
+src/jobs/agents/receiptMonitor.agent.ts
+AI AGENT: identifies patterns in signature delays — which accounts and operators have chronic unsigned document issues.
+src/jobs/agents/kpiForecast.agent.ts
+AI AGENT: 2-3 sentence trend analysis and forecast from 90-day deployment/revenue data. Used in daily KPI digest card.
+src/jobs/agents/dispatchPopulation.agent.ts
+AI AGENT: suggests courier/driver from last 5 dispatches to the same account. Always requires human confirmation — never auto-fills.
+src/routes/index.ts
+Root router: mounts all 12 module routers + /api/health (returns DB + Redis status for AKS health probes).
+tests/setup.ts
+Jest global setup: runs Prisma migrations against test DB, seeds one user per role + 5 assets + 2 accounts. Cleanup after all tests.
+tests/helpers/testDb.ts
+seedTestUser(role), seedTestAsset(overrides?), seedTestDeployment(overrides?), clearTable, resetAllTables.
+tests/helpers/authHelper.ts
+getTestToken(role): generates signed JWT for a test user. Returns Authorization header string for Supertest.
+tests/helpers/mockServices.ts
+Jest mocks for Teams (no HTTP), Blob (fake URLs), Email (no SMTP), OpenAI (fixed response). Applied in unit and integration tests.
+tests/unit/bom.service.test.ts
+Tests: all REQUIRED packed → isComplete true. One missing REQUIRED → isComplete false with that item in missingItems. Missing OPTIONAL only → isComplete true (not a blocker).
+tests/unit/dispatch.service.test.ts
+Tests: generateDocument throws DISPATCH_BLOCKED (409) when packing incomplete. Succeeds with complete packing.
+tests/unit/asset.stateMachine.test.ts
+Tests: all valid transitions return true. Invalid transitions (AVAILABLE→COMPLETED, RETIRED→AVAILABLE, etc.) return false.
+tests/integration/deployments.test.ts
+Tests: create succeeds, overlapping booking returns 409 BOOKING_CONFLICT, approve with MANAGER token succeeds, with EQC token returns 403.
+tests/integration/dispatch.test.ts
+Tests: incomplete BOM → 409 DISPATCH_BLOCKED with missingItems array. Complete BOM → 200 with pdfUrl and docId.
+tests/integration/inspection.test.ts
+Tests: createInspection creates correct row count. FAIL result creates repair case ID. completeInspection sets AVAILABLE on all-pass, IN_REPAIR on any-fail.
+tests/integration/webhooks.test.ts
+Tests: valid HMAC + new sfdc_request_id → 201. Same request again → 200 with existing record (idempotency). Invalid HMAC → 401.
+4. Process Flows
+4.1 Azure AD SSO Authentication Flow
+User clicks 'Sign in with Olympus AD' on the frontend application.
+Frontend redirects to Azure AD authorize URL with client_id, redirect_uri, response_type=code, scope=openid email profile.
+User authenticates using Olympus corporate credentials inside Azure AD.
+Azure AD redirects to GET /api/auth/sso/azure?code={auth_code} on the backend.
+auth.service.azureCallback(code): exchanges authorization code for Azure AD access token via POST to Azure AD token endpoint.
+Backend fetches user profile from Microsoft Graph API using the Azure AD access token.
+Calls user.service.upsertFromAzureAD(azureAdObjectId, profile): creates the user record on first login, updates name/email on subsequent logins.
+Calls auth.service.issueTokenPair(user): signs a JWT access token (15-minute expiry) and generates a cryptographically random refresh token.
+Stores the SHA-256 hash of the refresh token in the User.refreshTokenHash field in the database.
+Sets an HttpOnly, SameSite=Strict, Secure cookie containing the refresh token value.
+Returns the access token in the JSON response body.
+Frontend stores the access token in memory only — never in localStorage or sessionStorage.
+All subsequent API calls include Authorization: Bearer {access_token} header.
+4.2 Demo Deployment Full Lifecycle
+Sales rep creates a Demo Request in Salesforce for a hospital visit, specifying device model, dates, and account.
+MuleSoft detects the new Salesforce record and calls POST /api/webhooks/mulesoft/new-request with HMAC-SHA256 signature.
+Backend validates HMAC signature, checks sfdc_request_id for idempotency, creates DeviceDeployment (status: PENDING_EQC), and upserts the Account record.
+EQC Manager logs in to the web app, sees the pending request in the service dashboard.
+Manager calls PATCH /api/deployments/{id}/approve — system validates no date conflicts, transitions status to IN_PREPARATION, posts Teams Adaptive Card to #eqc-ops-alerts.
+EQC Operator calls POST /api/bom/snapshots to freeze the BOM for this deployment — serializes all BOM components to JSON in BOMSnapshot table.
+Operator physically picks components, then calls POST /api/bom/validate-packing to verify all REQUIRED items are present.
+Operator calls POST /api/dispatch/documents — system checks dispatch block (returns 409 if any REQUIRED item missing), generates A4 PDF with embedded QR code, uploads to Azure Blob, transitions deployment to IN_TRANSIT, queues print email to warehouse printer.
+Device is physically dispatched to the hospital. Hospital receives the device and signs the paper transport document.
+EQC Operator scans the signed copy and calls POST /api/dispatch/documents/{id}/sign with multipart upload — stored in Azure Blob signed-copies container, DispatchDocument.status set to SIGNED.
+Hospital returns device. EQC Operator calls PATCH /api/deployments/{id}/status with status: RETURNED.
+EQC Operator calls POST /api/inspections to create inspection records (one per BOM component). Records each component result via PATCH on each item. Any FAIL or MISSING auto-creates a repair case (RC-YYYYMMDD-XXX) and posts CRIT Teams alert to #asset-defects. POST /api/inspections/{id}/complete finalizes: all PASS → asset to AVAILABLE; any FAIL → asset to IN_REPAIR; deployment to COMPLETED.
+4.3 BOM Dispatch Block Enforcement
+The dispatch block is a hard server-side constraint. It cannot be bypassed by the frontend under any circumstances.
+EQC Operator calls POST /api/dispatch/documents with { deploymentId }.
+dispatch.service.generateDocument() first calls bom.service.validatePacking(snapshotId, packedItemIds[]).
+validatePacking reads all components from the frozen BOMSnapshot where item_type = REQUIRED.
+Checks which required component IDs are present in the packedItemIds array provided by the client.
+If any REQUIRED component is absent: returns { isComplete: false, missingItems: [{componentId, componentName, requiredQty}...] }.
+dispatch.service receives isComplete = false: throws AppError.dispatchBlocked(missingItems).
+errorHandler.middleware catches this AppError: returns HTTP 409 with body { success: false, error: { code: 'DISPATCH_BLOCKED', message: 'Cannot dispatch — missing required BOM items', details: { missingItems: [...] } } }.
+Frontend displays the missing items list to the EQC operator.
+Operator physically locates the missing items, adds them, and re-calls validate-packing.
+Once all REQUIRED items confirmed as packed: POST /api/dispatch/documents proceeds to PDF generation.
+4.4 MuleSoft Inbound Integration Flow
+Salesforce event triggers MuleSoft Experience API.
+MuleSoft computes HMAC-SHA256 of the raw request body using the shared secret and adds it as X-Mulesoft-Signature header.
+MuleSoft calls POST /api/webhooks/mulesoft/new-request with raw JSON body.
+webhook.routes.ts applies express.raw() middleware on this route — preserves raw body bytes for signature computation.
+webhook.validator.ts reads X-Mulesoft-Signature header, computes HMAC-SHA256(rawBody, MULESOFT_WEBHOOK_SECRET) using Node.js crypto module.
+Compares computed signature with the header value using crypto.timingSafeEqual() to prevent timing-based attacks.
+If signatures do not match: immediately returns 401 Unauthorized and logs the attempt to Azure Monitor.
+If valid: parses JSON body (JSON.parse(rawBody)).
+Checks DeviceDeployment table for existing record where sfdc_request_id = body.id (idempotency check).
+If duplicate: returns 200 with existing record to prevent MuleSoft from creating duplicate deployments on retry.
+If new: creates deployment, upserts account, returns 201.
+All errors inside processing are caught and logged — always returns 200 to prevent MuleSoft retry storms on application-level failures.
+4.5 Automated Overdue Alert Pipeline
+BullMQ cron job fires every 6 hours via overdueAlertQueue.
+overdueAlert.processor.ts queries: DeviceDeployment WHERE status = DELIVERED AND end_date < NOW().
+For each overdue deployment: calculates daysOverdue = Math.floor((now - endDate) / 86400000).
+Classifies severity: 1-3 days = MEDIUM (log only), 4-7 days = HIGH, 8-14 days = CRIT, >14 days = URGENT.
+Reads alert_sent_at and last_alert_severity from the deployment record — skips if this severity level was already alerted.
+For new severity: calls overdueClassifier.agent.ts with full deployment context.
+overdueClassifier.agent.ts calls openai.service.complete() with deployment data, receives { severity, suggestedAction, emailDraft }.
+teams.service.postOverdueAlert(deployment, severity, emailDraft) posts Adaptive Card to #loaner-overdue or #demo-alerts with device details, days overdue, AI-drafted message, and action buttons.
+Updates deployment record: alert_sent_at = now, last_alert_severity = severity.
+When action button is clicked in Teams: Teams POST to /api/webhooks/teams, teams.controller routes the acknowledgment or escalation action.
+4.6 MS Teams Adaptive Card Integration
+Outbound (Backend to Teams)
+teams.service constructs an Adaptive Card JSON payload and POSTs it to the appropriate Teams channel webhook URL from config. Retry logic: 3 attempts with exponential backoff (500ms, 1000ms, 2000ms). On complete failure: writes to AlertFailure table for manual retry via admin dashboard.
+Inbound (Teams Card Actions to Backend)
+When a user clicks Acknowledge, Escalate, or Review on a Teams card, Teams sends POST to /api/webhooks/teams with the card action payload. teams.controller.handleCardAction() validates the Teams HMAC signature, parses the action type, and routes to the appropriate service method (mark alert acknowledged, create manager escalation, etc.). Returns 200 to Teams immediately.
+5. Authentication & Authorization
+5.1 User Roles
+Role
+Description
+Key Permissions
+SALES
+Sales reps & Field Service Engineers
+Create demo/loaner requests, view own deployments, check availability, request extensions
+EQC
+Equipment Center operators
+BOM packing, dispatch document generation, upload signed copies, perform inspections
+MANAGER
+EQC Manager or Sales Manager
+All EQC permissions + approve/reject requests, approve extensions, view all-team dashboards
+FINANCE
+Finance and billing team
+View and manage invoices, access billing reports, view financial KPIs
+WAREHOUSE
+Warehouse inventory staff
+View inventory dashboard, confirm asset staging, update warehouse location
+ADMIN
+IT/Platform administrator
+Full system access, user management, BOM configuration, integration monitoring, audit logs
+5.2 JWT Token Structure
+Access Token Payload:
+{ sub: "userId (UUID)", email: "user@olympus.th", role: "EQC", azureAdObjectId: "...", iat: 1234567890, exp: 1234568790 }
+Access token expiry: 15 minutes (900 seconds)
+Refresh token expiry: 7 days (604800 seconds) — stored as HttpOnly cookie
+Refresh token stored as SHA-256 hash in DB — raw value never persisted
+On token reuse detection (same refresh token used twice): all sessions revoked
+5.3 RBAC Middleware Implementation
+The requireRole factory is applied per-route:
+router.patch("/approve", requireRole("MANAGER", "ADMIN"), asyncHandler(controller.approve))
+On insufficient role: returns HTTP 403 with { success: false, error: { code: 'INSUFFICIENT_PERMISSIONS', message: '...' } }.
+5.4 Middleware Execution Order
+For every authenticated API request, middleware executes in this fixed order:
+Helmet (sets security headers: CSP, HSTS, X-Frame-Options, etc.)
+CORS (restrict to FRONTEND_ORIGIN from config)
+express.json() (parse body, 1MB limit)
+requestLogger.middleware (log every request)
+rateLimiter.middleware (check per-route rate limits)
+[Route match]
+auth.middleware (verify JWT, attach req.user) — skipped for /auth/* and /webhooks/*
+rbac.middleware (check role against route requirement) — where applied
+validate.middleware (Zod schema check on body/query/params) — where applied
+asyncHandler (wraps next function in try-catch)
+Route Handler (controller method)
+audit.middleware (write audit log non-blocking via setImmediate) — on state-changing routes
+errorHandler.middleware (catches any thrown error, formats and sends response)
+6. Integration Connectors
+6.1 Salesforce / MuleSoft Connector
+Direction: Bi-directional
+Method: HMAC-SHA256 signed webhooks via MuleSoft Experience API
+Inbound endpoints: POST /api/webhooks/mulesoft/new-request, POST /api/webhooks/mulesoft/status-update, POST /api/webhooks/mulesoft/asset-sync
+Security: HMAC-SHA256 signature validation on every call using crypto.timingSafeEqual()
+Idempotency: sfdc_request_id checked before creating any record
+Error handling: always return 200 to prevent MuleSoft retry storms; log errors to Azure Monitor
+6.2 SAP S/4HANA Connector
+Direction: Read-only inbound synchronization
+Method: Daily batch via MuleSoft asset-sync webhook endpoint
+Data synchronized: Material Master (BOM component part numbers), Equipment Asset (SAP asset numbers)
+Schedule: Daily at 02:00 UTC — processes via webhook.service.processAssetSyncBatch()
+All SAP data is reference-only — no writes back to SAP in current phase
+6.3 MS Teams Connector
+Direction: Outbound alerts + inbound action callbacks
+Channels (6): #eqc-ops-alerts, #loaner-overdue, #demo-alerts, #asset-defects, #inventory-critical, #exec-summary
+Method: Incoming Webhooks (outbound) + callback endpoint /api/webhooks/teams (inbound)
+Retry: 3 attempts with exponential backoff on outbound failures
+Failure handling: AlertFailure table for manual retry via admin dashboard
+6.4 Azure OpenAI Connector
+Direction: Outbound (backend calls Azure OpenAI REST API)
+Model: GPT-4o mini (cost-optimized for high-volume inference)
+Token budgets: 300-2000 tokens per inference depending on agent type
+Retry: 3x on HTTP 429 (rate limit) and 503 (unavailable) with exponential backoff
+Usage: 6 AI agents running as BullMQ background workers — never in request path
+6.5 Azure Blob Storage Connector
+Containers: transport-docs (dispatch PDFs), signed-copies (signed return documents), audit-reports (compliance reports)
+Access pattern: Private storage — SAS tokens generated on demand with 1-hour expiry
+SAS tokens are NOT stored in the database — generated fresh when user requests a download
+Blob paths stored in DB (not full URLs) to allow SAS generation for any environment
+6.6 Email / SMTP Connector
+Provider: Azure Communication Services SMTP or SendGrid as fallback
+All email sending is asynchronous — queued via BullMQ emailQueue, never inline in request path
+Use cases: warehouse printer notifications (with PDF attachment), manager escalations, scheduled report distribution
+7. Database Schema Reference
+The database runs on Azure SQL (SQL Server). Prisma uses the sqlserver datasource provider. All 13 tables are defined in prisma/schema.prisma.
+Table
+Key Fields
+User
+id, email, name, role, azureAdObjectId, passwordHash, refreshTokenHash, isActive, createdAt, updatedAt
+Account
+id, name, type, city, region, sfdc_account_id, createdAt, updatedAt
+Asset
+device_id, serial_number, model_code, sap_asset_number, asset_type, status, warehouse_code, condition, last_sterilized_at, deployment_count_ytd
+DeviceDeployment
+deployment_id, deployment_type, device_id, account_id, start_date, end_date, actual_return_date, is_billable, rental_rate, billing_cycle, extension_count, status, assigned_eqc_user_id, bom_snapshot_id, sfdc_request_id, approved_by_id, alert_sent_at
+BOMComponent
+component_id, sap_component_material, component_name, model_code, asset_set, required_qty, uom, item_type, is_active, effective_date, last_synced_from_sap
+BOMSnapshot
+snapshot_id, deployment_id (unique), snapshot_date, components (JSON text), createdAt
+DispatchDocument
+doc_id, deployment_id (unique), pdf_path, qr_code, signed_copy_url, generated_by_id, status, signed_at, createdAt
+InspectionRecord
+inspection_id, deployment_id, component_id, result, condition_note, repair_case_id, inspected_by_id, inspected_at, createdAt
+CustodyNode
+node_id, deployment_id, custodian_type, custodian_id, arrived_at, departed_at, transfer_type
+Invoice
+invoice_id, deployment_id, period_start, period_end, amount_due, payment_status, paid_date, createdAt
+AuditLog
+log_id, entity_type, entity_id, action, old_value (JSON), new_value (JSON), user_id, timestamp
+AlertFailure
+failure_id, channel, payload (JSON), error_message, retry_count, resolved, createdAt
+ConfigThreshold
+threshold_id, model_code, min_available_count, createdAt, updatedAt
+7.1 Critical Performance Indexes
+The following indexes are defined in schema.prisma for Azure SQL query performance:
+DeviceDeployment: index on (status), (start_date, end_date), (device_id, status)
+Asset: index on (serial_number), (status), (model_code)
+AuditLog: index on (entity_type, entity_id), (timestamp DESC)
+DispatchDocument: index on (status, created_at), (deployment_id)
+Overdue scan: filtered index on DeviceDeployment(status, end_date) WHERE status = 'DELIVERED'
+7.2 Concurrent Booking Prevention
+To prevent two users from booking the same device for overlapping dates simultaneously, deployment creation uses Prisma's $transaction() with serializable isolation level. Within the transaction, the system queries for any active deployment on the same device with overlapping date ranges before creating the new record. Azure SQL handles row-level locking within the serializable transaction, ensuring only one booking succeeds in a race condition.
+8. Environment Variable Reference
+All variables are validated at application startup via a Zod schema in src/config/index.ts. The application crashes immediately with a descriptive error if any required variable is missing or malformed.
+Variable
+Description
+Example Value
+DATABASE_URL
+Azure SQL connection string for Prisma
+sqlserver://server.database.windows.net;database=eqc_db;...
+JWT_SECRET
+Secret key for signing JWT access tokens
+a-long-random-secret-string
+JWT_EXPIRY
+Access token expiry in seconds
+900
+REFRESH_TOKEN_EXPIRY
+Refresh token expiry in seconds
+604800
+AZURE_AD_TENANT_ID
+Azure AD tenant ID for SSO
+xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+AZURE_AD_CLIENT_ID
+App registration client ID
+xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+AZURE_AD_CLIENT_SECRET
+App registration client secret
+<from Key Vault>
+AZURE_AD_REDIRECT_URI
+OAuth callback URL
+https://api.eqc.olympus.th/api/auth/sso/azure
+AZURE_STORAGE_CONNECTION_STRING
+Blob Storage connection string
+<from Key Vault>
+AZURE_STORAGE_CONTAINER_TRANSPORT
+Blob container for dispatch PDFs
+transport-docs
+AZURE_STORAGE_CONTAINER_SIGNED
+Blob container for signed copies
+signed-copies
+AZURE_OPENAI_ENDPOINT
+Azure OpenAI resource endpoint
+https://<resource>.openai.azure.com
+AZURE_OPENAI_API_KEY
+Azure OpenAI API key
+<from Key Vault>
+AZURE_OPENAI_DEPLOYMENT
+GPT deployment name
+gpt-4o-mini
+AZURE_APP_INSIGHTS_CONNECTION_STRING
+Application Insights telemetry
+<from Key Vault>
+REDIS_URL
+Azure Cache for Redis connection string
+rediss://<name>.redis.cache.windows.net:6380
+MULESOFT_WEBHOOK_SECRET
+HMAC secret for MuleSoft webhook validation
+<shared secret>
+TEAMS_EQC_OPS_WEBHOOK
+Teams #eqc-ops-alerts incoming webhook URL
+https://xxx.webhook.office.com/...
+TEAMS_LOANER_OVERDUE_WEBHOOK
+Teams #loaner-overdue webhook URL
+https://xxx.webhook.office.com/...
+TEAMS_DEMO_ALERTS_WEBHOOK
+Teams #demo-alerts webhook URL
+https://xxx.webhook.office.com/...
+TEAMS_ASSET_DEFECTS_WEBHOOK
+Teams #asset-defects webhook URL
+https://xxx.webhook.office.com/...
+TEAMS_INVENTORY_CRITICAL_WEBHOOK
+Teams #inventory-critical webhook URL
+https://xxx.webhook.office.com/...
+TEAMS_EXEC_SUMMARY_WEBHOOK
+Teams #exec-summary webhook URL
+https://xxx.webhook.office.com/...
+SMTP_HOST
+SMTP server hostname
+smtp.sendgrid.net
+SMTP_PORT
+SMTP port
+587
+SMTP_USER
+SMTP username
+apikey
+SMTP_PASS
+SMTP password/API key
+<from Key Vault>
+WAREHOUSE_PRINTER_EMAIL
+Warehouse printer email address
+printer@warehouse.eqc.olympus.th
+NODE_ENV
+Runtime environment
+production
+PORT
+HTTP port for the API server
+3000
+LOG_LEVEL
+Minimum log level to output
+info
+FRONTEND_ORIGIN
+Allowed CORS origin (frontend URL)
+https://app.eqc.olympus.th
+9. Verification Plan
+After implementation, verify end-to-end correctness using these 8 steps:
+Schema Migrations: Run prisma migrate dev against Azure SQL Edge (local Docker). Confirm all 13 tables created without errors. Verify all indexes exist using Azure Data Studio or SSMS.
+Authentication: POST /api/auth/login with test user credentials → receive JWT access token + cookie. Call GET /api/auth/me → verify user object returned. Call any protected route without token → confirm HTTP 401. Call with expired token → confirm 401 with TOKEN_EXPIRED code.
+RBAC: Call GET /api/users (ADMIN only) with a SALES-role token → confirm HTTP 403 INSUFFICIENT_PERMISSIONS. Repeat with ADMIN token → confirm HTTP 200.
+BOM Dispatch Block: Create test deployment, freeze BOM snapshot, call POST /api/dispatch/documents with an incomplete packed items list → confirm HTTP 409 DISPATCH_BLOCKED with missingItems array in response. Add the missing items and call again → confirm HTTP 200 with a pdfUrl and docId.
+State Machine Enforcement: Try transitioning an asset from AVAILABLE directly to COMPLETED → confirm HTTP 409 conflict. Try a valid transition (AVAILABLE → DEMO) → confirm HTTP 200. Try to transition a RETIRED asset to any status → confirm HTTP 409.
+MuleSoft Webhook Idempotency: POST /api/webhooks/mulesoft/new-request with a valid HMAC signature and a new sfdc_request_id → confirm HTTP 201 and new deployment created. Send the exact same request again → confirm HTTP 200 returned with the same existing deployment record (no duplicate created). Send the same request with an invalid HMAC signature → confirm HTTP 401.
+Teams Alert (mocked): Trigger the overdue alert processor manually via /api/admin/agents/overdue-alert/trigger. Confirm in logs that teams.service.postOverdueAlert was called with the correct deployment data. In non-production environment this should use the mockTeamsService which resolves without making HTTP calls.
+Integration Test Suite: Run npm test -- --testPathPattern=integration from the project root. All integration tests must pass with 100% success rate before any deployment to staging.
+10. Development Roadmap
+Sprint
+Weeks
+Backend Focus
+S1–S2
+1–8
+DB schema migration, Auth module, Asset module, Deployment module, BOM module — core data layer and all state machines
+S3
+9–12
+Dispatch module (PDF generation, QR code, Azure Blob), Inspection module, MuleSoft webhook handlers, HMAC validation
+S4
+13–16
+Dashboard APIs (5 role-gated endpoints), Report generation service (XLSX/PDF), AI dashboard caching (node-cache, 5-min TTL)
+S5
+16–20
+6 AI agents via Azure OpenAI, BullMQ job processors (5 cron workers), MS Teams Adaptive Card integration, Azure OpenAI connector
+S6
+21–24
+Performance tuning, load testing on AKS, go-live data migration, rollback procedures, team handover and documentation
+10.1 Sprint 3 Priority (Weeks 9-12) — Current Focus
+Sprint 3 is the first sprint after the core data layer (S1-S2). Key deliverables:
+src/modules/dispatch/ — all 6 files including pdf.service.ts and qr.service.ts
+src/modules/inspection/ — all 4 files with repair case auto-creation
+src/modules/webhooks/ — MuleSoft handler files with HMAC validation
+Integration tests for dispatch block and inspection flow
+Azure Blob Storage integration for PDF and signed copy storage
+10.2 Sprint 5 Priority (Weeks 16-20) — AI Agents
+Sprint 5 introduces all AI capabilities:
+src/jobs/agents/ — all 6 agent files (auditNarration, overdueClassifier, anomalyDetection, receiptMonitor, kpiForecast, dispatchPopulation)
+src/jobs/processors/ — all 5 BullMQ processor files with cron scheduling
+src/services/openai.service.ts — Azure OpenAI client with retry logic
+src/services/teams.service.ts — full Teams integration with Adaptive Cards and 3x retry
+src/jobs/scheduler.ts — cron job registration for all 4 scheduled processors
+End of Document
+EQC Asset Management Platform Backend Technical Specification v1.0 — May 2026

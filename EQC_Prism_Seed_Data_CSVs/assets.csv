@@ -1,0 +1,17 @@
+section_6.2_|_15_sample_records_|_source:_oth_eqc_finalsystemdesign.docx,,,,,,
+asset_name,serial_number,model_code,status,demo_loaner_type,warehouse_code,account
+CH-S700-XZ-EA,7200524,CH-S700-XZ-EA,Available,Loaner_Asset,1.TEC EQC Store,Buddachinarai Hospital
+GIF-Q158,2307145,GIF-Q158,With_Customer,Loaner_Asset,Manon Naval Hospital,Manon Naval Hospital
+CF-Q165L,2760115,CF-Q165L,Under_Repair,Loaner_Asset,Repair Center,NE Welfare Hospital
+OTV-S200,7559775,OTV-S200,Available,Service_Center,1.TEC EQC Store,1.TEC EQC Store
+HYF-XP,2312794,HYF-XP,Available,Loaner_Asset,1.TEC EQC Store,1.TEC EQC Store
+HYF-XP,7420507,HYF-XP,Available,Loaner_Asset,1.TEC EQC Store,1.TEC EQC Store
+MD-431,MD431LN07,MD-431,Available,Loaner_Asset,1.TEC EQC Store,1.TEC EQC Store
+CLV-180,7709592,CLV-180,With_Customer,Loaner_Asset,Bangkok Hospital Udon,Bangkok Hospital Udon
+OEV-191H,7028875,OEV-191H,Available,Loaner_Asset,1.TEC EQC Store,1.TEC EQC Store
+BF-1T150,2040400,BF-1T150,Preparing,Loaner_Asset,1.TEC EQC Store,Khon Kaen Hospital
+CV-V1,1300499,CV-V1,Available,Service_Center,1.TEC EQC Store,1.TEC EQC Store
+GIF-H190,2200584,GIF-H190,Available,Loaner_Asset,1.TEC EQC Store,1.TEC EQC Store
+GIF-V2,2714368,GIF-V2,Available,Loaner_Asset,1.TEC EQC Store,1.TEC EQC Store
+TJF-Q180V,3300782,TJF-Q180V,Extension_Used,Loaner_Asset,King Chulalongkorn,King Chulalongkorn Memorial
+GIF-XQ290,3100995,GIF-XQ290,With_Customer,Loaner_Asset,Chiang Mai Ram Hospital,Chiang Mai Ram Hospital

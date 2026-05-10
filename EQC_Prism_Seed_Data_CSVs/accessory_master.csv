@@ -1,0 +1,6 @@
+accessory_id,accessory_name,accessory_code,category,inventory_status,usage_type
+ACCY001,Light Source Cable,LSC-100,Cable,Available,Reusable
+ACCY002,Water Bottle,WB-210,Bottle,Available,Reusable
+ACCY003,Biopsy Valve,BV-550,Valve,Low_Stock,Disposable
+ACCY004,Video Processor,VP-900,Processor,Available,Reusable
+ACCY005,Transport Case,TC-111,Case,Available,Reusable

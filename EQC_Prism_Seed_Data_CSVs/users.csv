@@ -1,0 +1,6 @@
+user_id,full_name,department,area,role,status,email,phone
+USR001,Porngak Suriya,Sales,North,Field_Sales,Active,porngak@eqc.com,+66-8001
+USR002,Jakkraphan W.,Sales,Central,Field_Sales,Active,jakkraphan@eqc.com,+66-8002
+USR003,Anti Kessle,Service,South,FSE,Active,anti@eqc.com,+66-8003
+USR004,Maria Chen,Operations,SEA,Coordinator,Active,maria@eqc.com,+65-8004
+USR005,Rahul Mehta,Sales,West,Manager,Active,rahul@eqc.com,+91-8005

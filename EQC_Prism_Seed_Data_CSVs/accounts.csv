@@ -1,0 +1,9 @@
+account_id,account_name,city,country,region,hospital_type,status,phone
+ACC001,Buddachinarai Hospital,Bangkok,Thailand,North,Government,Active,+66-2001
+ACC002,London Hospital,London,UK,Central,Private,Active,+44-2002
+ACC003,Manon Naval Hospital,Phuket,Thailand,South,Military,Active,+66-2003
+ACC004,NE Welfare Hospital,Chiang Mai,Thailand,North,Government,Active,+66-2004
+ACC005,Ramathibodi Hospital,Bangkok,Thailand,Central,University,Active,+66-2005
+ACC006,Sakura Medical Center,Osaka,Japan,East,Private,Active,+81-3001
+ACC007,Apollo Medics,Delhi,India,West,Private,Active,+91-4001
+ACC008,Global Care Hospital,Singapore,Singapore,SEA,Corporate,Active,+65-5001
