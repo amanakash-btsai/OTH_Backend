@@ -9,6 +9,10 @@ dist/
 .env.local
 .env.*.local
 
+# Claude AI and docs
+.claude/
+docs/
+
 # Test coverage
 coverage/
 

@@ -21,8 +21,11 @@ model User {
   role         String  @db.NVarChar(50)
   team         String? @db.NVarChar(100)
   area         String? @db.NVarChar(50)
-  sfdc_user_id String? @db.NVarChar(20)
-  is_active    Boolean
+  sfdc_user_id        String? @db.NVarChar(20)
+  azure_ad_object_id  String? @db.UniqueIdentifier
+  password_hash       String? @db.NVarChar(200)
+  refresh_token_hash  String? @db.NVarChar(64)
+  is_active           Boolean
 
   assets_fse                 Asset[]            @relation("AssetFSE")
   bom_sets_created           BomSet[]
