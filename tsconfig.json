@@ -13,7 +13,7 @@
       "@modules/*": ["./src/modules/*"],
       "@services/*": ["./src/services/*"],
       "@utils/*": ["./src/utils/*"],
-      "@types/*": ["./src/types/*"]
+      "@app-types/*": ["./src/types/*"]
     },
     "esModuleInterop": true,
     "experimentalDecorators": false,

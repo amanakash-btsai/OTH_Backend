@@ -1,0 +1,41 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "e698d157-5bea-4a76-be37-f4d83a6948e5",
+  "developer": {
+    "name": "Olympus",
+    "websiteUrl": "https://www.olympus.com",
+    "privacyUrl": "https://www.olympus.com/privacy",
+    "termsOfUseUrl": "https://www.olympus.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "OTH Platform",
+    "full": "Olympus EQC Asset Management Platform"
+  },
+  "description": {
+    "short": "Approve demo/loaner asset requests from Teams",
+    "full": "The OTH platform notifies Sales Managers in Teams when a Sales Rep submits a demo or loaner asset request. Managers can approve or reject directly from the Teams card."
+  },
+  "accentColor": "#003087",
+  "bots": [
+    {
+      "botId": "b4bb16ce-fdab-489b-80ea-23187d653eca",
+      "scopes": ["personal"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "supportsCalling": false,
+      "supportsVideo": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["localhost:3000"],
+  "webApplicationInfo": {
+    "id": "b4bb16ce-fdab-489b-80ea-23187d653eca",
+    "resource": "https://graph.microsoft.com"
+  }
+}

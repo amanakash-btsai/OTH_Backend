@@ -19,12 +19,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@azure/identity": "^4.4.1",
+    "@azure/identity": "^4.13.1",
     "@azure/keyvault-secrets": "^4.8.0",
     "@azure/storage-blob": "^12.24.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
     "@prisma/client": "^5.22.0",
     "applicationinsights": "^3.3.1",
     "bcryptjs": "^2.4.3",
+    "botbuilder": "^4.23.3",
     "bullmq": "^5.13.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

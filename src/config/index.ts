@@ -1,5 +1,20 @@
-﻿import { z } from 'zod';
+﻿// ─────────────────────────────────────────────────────────────────────────────
+// FILE: config/index.ts
+// Central configuration file. Reads ALL environment variables (from the .env
+// file or Azure App Service settings), validates them with Zod, and exports a
+// single frozen `config` object that every other file imports from.
+//
+// If a required variable is missing or wrong type, the server REFUSES to start
+// and prints exactly which variable is broken. This prevents mysterious crashes
+// at runtime due to bad configuration.
+// ─────────────────────────────────────────────────────────────────────────────
 
+import { z } from 'zod';
+
+// Define the "shape" and rules for every environment variable.
+// z.string().min(1) = must be a non-empty string.
+// z.coerce.number() = convert the string "900" to the number 900.
+// .default(x) = use x if the variable is not set.
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
@@ -25,6 +40,15 @@ const envSchema = z.object({
 
   MULESOFT_WEBHOOK_SECRET: z.string().optional(),
 
+  // Graph API / Teams notifications
+  GRAPH_TENANT_ID: z.string().optional(),
+  GRAPH_CLIENT_ID: z.string().optional(),
+  GRAPH_CLIENT_SECRET: z.string().optional(),
+  TEAMS_BOT_APP_ID: z.string().optional(),
+  TEAMS_APP_EXTERNAL_ID: z.string().default('com.olympus.eqc.oth'),
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
+  EQC_TEAMS_CHANNEL_WEBHOOK: z.string().optional(),
+
   TEAMS_EQC_OPS_WEBHOOK: z.string().optional(),
   TEAMS_LOANER_OVERDUE_WEBHOOK: z.string().optional(),
   TEAMS_DEMO_ALERTS_WEBHOOK: z.string().optional(),
@@ -44,10 +68,17 @@ const envSchema = z.object({
   FRONTEND_ORIGIN: z.string().default('http://localhost:5173'),
 });
 
+// Try to parse process.env against the schema.
+// safeParse won't throw — it returns { success: true, data } or { success: false, error }.
 const parsed = envSchema.safeParse(process.env);
+
+// If validation fails, print the exact bad variables and kill the process.
+// A server with missing config is useless — better to fail loudly at startup.
 if (!parsed.success) {
   console.error('❌ Invalid environment variables:\n', parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
 
+// Object.freeze makes this config immutable — nothing can accidentally
+// overwrite DATABASE_URL or JWT_SECRET at runtime.
 export const config = Object.freeze(parsed.data);

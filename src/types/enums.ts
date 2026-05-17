@@ -1,4 +1,20 @@
-﻿export type UserRole =
+﻿// ─────────────────────────────────────────────────────────────────────────────
+// FILE: types/enums.ts (backend)
+// All domain-specific type definitions shared across the backend.
+// These mirror the allowed values in the database columns. Using TypeScript
+// union types instead of plain strings means the compiler catches typos like
+// 'Avialable' at build time, not at runtime.
+//
+// Key domain types:
+//   UserRole      — what a user is allowed to do in the system
+//   AssetStatus   — where an asset is in its lifecycle
+//   SalesRequestStatus — where a request is in its approval/fulfilment flow
+// ─────────────────────────────────────────────────────────────────────────────
+
+// UserRole: determines which screens and actions each user can access.
+// Sales_Rep / FSE = field staff. EQC_* = warehouse/ops team.
+// Sales_Manager = approves requests. Executive / System_Admin = read-all + config.
+export type UserRole =
   | 'Sales_Rep'
   | 'FSE'
   | 'EQC_Operator'
